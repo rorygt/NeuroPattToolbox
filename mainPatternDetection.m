@@ -137,13 +137,16 @@ for itrial = 1:size(wvcfs,4)
 end
 
 activeArray = makeActivePatternsArray(allPatts, length(pattTypes), size(wvcfs,3));
+figure
+imagesc((1:size(wvcfs,3))/Fs, 1:length(pattTypes), activeArray)
+set(gca, 'YTick', 1:length(pattTypes), 'YTickLabel', pattTypes)
 
 toc
 
 %% Plot pattern locations
 figure
 smoothScale = 20;
-nspacebins = 10;
+nspacebins = (9 - 2*params.minEdgeDist) * 2;
 plotPatternLocs(allLocs, pattTypes, realTime, size(wvcfs,4), nspacebins, smoothScale);
 
 

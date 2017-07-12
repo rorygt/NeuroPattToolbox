@@ -1,12 +1,17 @@
 function [patterns, pattTypes, colNames, allPatternLocs, params] = ...
     findAllPatterns(vfx, vfy, params)
-% FINDALLCRITICALPOINTS finds the critical points at each point in time for
+% FINDALLPATTERNS finds the patterns at each point in time for
 % the velocity fields determined by the XxYxTime matrices VFX and
-% VFY. CRITPOINTSTRUCT is a structure containing the type,
-% location and Jacobian of every critical point detected in the velocity
-% field vectors.
+% VFY.
+% PATTERNS is a matrix containing the type, location and time of each
+%   pattern present: each pattern is a row, column titles are given by
+%   COLNAMES. Pattern types are given by indices, which correspond to the
+%   patterns named in PATTTYPES.
+% ALLPATTERNLOCS is a Nx1 cell array where N is the number of patterns
+%   types. Each cell contains the row, column, time active and pattern type
+%   index for each occurence of the pattern type in that cell.
 %
-% Params is a structure containing optional user settings:
+% PARAMS is a structure containing optional user settings:
 %   params.minDuration is the minimum duration (in time steps) of a 
 %       pattern for it to be detected (default 1).
 %   params.maxTimeGap gives the maximum duration in time steps between
@@ -28,6 +33,7 @@ function [patterns, pattTypes, colNames, allPatternLocs, params] = ...
 %   params.combineNodeFocus is a boolean flag indicating that nodes and
 %       foci should be treated as identical critical points, instead of
 %       being split into sources/saddles and spirals (default false).
+% PARAMS can also be output, to keep track of any default values used.
 
 
 if any(size(vfx) ~= size(vfy))
