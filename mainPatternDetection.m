@@ -136,6 +136,8 @@ for itrial = 1:size(wvcfs,4)
     allLocs{itrial} = pattLocs;
 end
 
+activeArray = makeActivePatternsArray(allPatts, length(pattTypes), size(wvcfs,3));
+
 toc
 
 %% Plot pattern locations
