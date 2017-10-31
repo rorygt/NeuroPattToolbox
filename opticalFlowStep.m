@@ -3,15 +3,24 @@ function [u, v, convergenceLoop] = opticalFlowStep(im1, im2, ...
     showFlag, u0, v0, im0, im3, angleFlag)
 % Find the optical flow U, V between two images IM1 and IM2 from a video
 % sequence.
+%
+% Rory Townsend, Aug 2017
+% rory.townsend@sydney.edu.au
 
+%% Fixed point iteration parameters
 % Maximum fractional change between iterations to be counted as a fixed
 % point
 maxChange = 0.01;
-
 % Maximum number of iterations
 maxIter = 1000;
+% Starting relaxation parameter for fixed point iteration
+relaxParam = 1.1;
+% Step to decrease relaxation parameter every iteration to ensure convergence
+relaxDecStep = 0.02;
+% Minimum relaxation parameter
+relaxParamMin = 0.2;
 
-% Default inputs
+%% Default inputs
 if ~exist('nanIndices', 'var')
     nanIndices = find(isnan(im1));
 end
@@ -31,8 +40,6 @@ end
 
 u = u0;
 v = v0;
-
-relaxParam = 1;
 
 %% Find derivatives
 
@@ -59,9 +66,6 @@ else
             2/3 * anglesubtract(im1, im2), angleFlag);
     end
 end
-
-% Define filter to estimate spatial mean
-% meanFilt=[1/12 1/6 1/12;1/6 0 1/6;1/12 1/6 1/12];
 
 %fixedPointFlag = 0;
 dataE = inf(size(im1));
@@ -149,8 +153,8 @@ for convergenceLoop = 1:maxIter
     
     % Gradually reduce the relaxation parameter to ensure the fixed point
     % iteration converges
-    if relaxParam > 0.2
-        relaxParam = relaxParam - 0.02;
+    if relaxParam > relaxParamMin
+        relaxParam = relaxParam - relaxDecStep;
     end
     
 %    % TESTING ONLY: Show optical flow field at each step

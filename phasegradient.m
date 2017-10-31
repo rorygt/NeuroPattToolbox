@@ -1,5 +1,8 @@
 function [gfx, gfy, badChannels] = phasegradient(f, badChannels, angleFlag, surroundLocs)
 % Calculates the phase gradient of complex matrix F
+%
+% Rory Townsend, Aug 2017
+% rory.townsend@sydney.edu.au
 
 sf = size(f);
 f = f(:,:,:);

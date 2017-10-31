@@ -1,6 +1,8 @@
 function varargout = phasegradientMATLAB(f,angleFlag,varargin)
-%Slight modification of MATLAB's gradient function to optionally function
-%on angular data
+% Slight modification of MATLAB's gradient function to optionally function
+% on angular data
+% Rory Townsend 2017
+%
 %   [FX,FY] = GRADIENT(F) returns the numerical gradient of the
 %   matrix F. FX corresponds to dF/dx, the differences in x (horizontal) 
 %   direction. FY corresponds to dF/dy, the differences in y (vertical) 

@@ -1,9 +1,11 @@
 function [rowcoords, colcoords] = criticalpointsbilinear(vx, vy, edgeDistance)
 % CRITICALPOINTSBILINEAR finds the critical points in the 2D vector field
-% defined by matrices VX and VY and returns their row- and column-coordinates.
-% This method is distinguished from previous methods in that critical point
-% coordinates are found through bilinear rather than piecewise linear
+% defined by matrices VX and VY and returns their row- and column-
+% coordinates. Critical point coordinates are found through bilinear
 % interpolation.
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 % Find piecewise linear level curves at 0 for vx and vy using MATLAB's
 % built in contour function
@@ -60,7 +62,6 @@ rowcoords = coords(:,1);
 colcoords = coords(:,2);
 
 
-
 function crossingMatrix = processlevelcurves(contourc_output, matSize, edgeDist)
 % Takes the output of MATLAB's contourc and uses it to find the corners of
 % all cells which are crossed by the 0-level curve.
@@ -76,8 +77,8 @@ colcoords = [floor(edgePoints(1,:)-10*eps), floor(edgePoints(1,:)+10*eps)];
 rowcoords = [floor(edgePoints(2,:)-10*eps), floor(edgePoints(2,:)+10*eps)];
 
 % Remove points outside the matrix
-badrow = colcoords<1+edgeDist | colcoords>=matSize(1)-edgeDist;
-badcol = rowcoords<1+edgeDist | rowcoords>=matSize(2)-edgeDist;
+badrow = rowcoords<1+edgeDist | rowcoords>=matSize(1)-edgeDist;
+badcol = colcoords<1+edgeDist | colcoords>=matSize(2)-edgeDist;
 bad = badrow | badcol;
 
 crossingMatrix(sub2ind(matSize-1, rowcoords(~bad), colcoords(~bad))) = 1;

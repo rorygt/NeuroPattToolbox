@@ -4,6 +4,9 @@ function signalGrid = interpolateDeadElectrodes(signalGrid, deadElectrodes, angl
 % with dimension [X Y T], where t gives time. badElectrodes is
 % an array containing the indices of the dead electrodes for the current
 % data set.
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 sg = size(signalGrid);
 signalGrid = signalGrid(:,:,:);
@@ -11,19 +14,26 @@ signalGrid = signalGrid(:,:,:);
 [nr, nc, nt] = size(signalGrid);
 signalGrid = reshape(signalGrid, [], nt);
 
-% If no dead electrodes are supplied, assume the corners need to be
-% interpolated
+% If no dead electrodes are supplied, interpolate over corners and any
+% channels with NaNs
 if nargin == 1
+    nanChans = find(any(isnan(signalGrid), 3));
     corners = sub2ind([nr nc], [1 nr 1 nr], [1 1 nc nc]);
-    deadElectrodes = corners;
+    deadElectrodes = union(corners, nanChans);
 end
     
 ii = 1;
+ndead = length(deadElectrodes(:));
 
 deadElectrodes = deadElectrodes(:)';
 while ii <= length(deadElectrodes(:))
     id = deadElectrodes(ii);
     ii = ii+1;
+    
+    % Skip if this electrode is invalid
+    if round(id)~=id || id<1 || id>nr*nc
+        continue
+    end
     
     % Define surrounding nodes in the form [down up left right]
     surrounding = [id+1 id-1 id+nr id-nr];
@@ -42,7 +52,7 @@ while ii <= length(deadElectrodes(:))
     % Remove surrounding nodes that are corners or other bad nodes unless
     % these are the only available nodes
     badSurround = ismember(surrounding,deadElectrodes);
-    if sum(badSurround) < length(surrounding)
+    if ii<=ndead || sum(badSurround) < length(surrounding)
         surrounding(badSurround) = [];
     end
     
@@ -55,9 +65,9 @@ while ii <= length(deadElectrodes(:))
     
     % Set to median value of surrounding electrodes
     if nargin < 3 || angleFlag ~= 1
-        signalGrid(id, :) = median(signalGrid(surrounding, :), 1);
+        signalGrid(id, :) = nanmedian(signalGrid(surrounding, :), 1);
     else
-        signalGrid(id, :) = angle(mean(exp(1i*signalGrid(surrounding, :))));
+        signalGrid(id, :) = angle(nanmean(exp(1i*signalGrid(surrounding, :))));
     end
 end
 

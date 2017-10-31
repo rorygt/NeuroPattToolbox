@@ -1,5 +1,5 @@
 function [patterns, pattTypes, colNames, allPatternLocs, params] = ...
-    findAllPatterns(vfx, vfy, params)
+    findAllPatterns(vfx, vfy, params, phase)
 % FINDALLPATTERNS finds the patterns at each point in time for
 % the velocity fields determined by the XxYxTime matrices VFX and
 % VFY.
@@ -19,9 +19,10 @@ function [patterns, pattTypes, colNames, allPatternLocs, params] = ...
 %       as the same pattern (default 0).
 %   params.planeWaveThreshold gives the minimum order parameter for
 %       activity to be considered a plane wave (must be between 0 and 1,
-%       close to 1 indicates plane wave activity, default 0.85).
+%       close to 1 indicates plane wave activity, default 1).
 %   params.synchronyThreshold gives the maximum mean vector magnitude below
-%       which all activity is considered synchony (default 0).
+%       which all activity is considered synchony (default is two standard
+%       deviations below the mean).
 %   params.minEdgeDist gives the minimum number of indices from the arrays
 %       edge for critical points to be considered (default 0).
 %   params.minCritRadius gives the minimum spatial radius for a critical
@@ -33,7 +34,15 @@ function [patterns, pattTypes, colNames, allPatternLocs, params] = ...
 %   params.combineNodeFocus is a boolean flag indicating that nodes and
 %       foci should be treated as identical critical points, instead of
 %       being split into sources/saddles and spirals (default false).
+%   params.combineStableUnstable is a boolean flag indicating that stable
+%       and unstable nodes and foci should be treated as identical critical
+%       points types, instead of being split into sources and sinks
+%       (default false).
 % PARAMS can also be output, to keep track of any default values used.
+%
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 
 if any(size(vfx) ~= size(vfy))
@@ -43,8 +52,10 @@ end
 nt = size(vfx, 3);
 
 [phi, v0, vdir] = orderParameter(vfx, vfy);
-
-%% Set parameter default values if not supplied
+if exist('phase', 'var')
+    rlength = nanmean(nanmean(exp(1i*phase)));
+end
+%% Check parameters and set default values if not supplied
 if exist('params', 'var') && isstruct(params)
     inputParams = fieldnames(params);
 else
@@ -53,12 +64,18 @@ end
 
 checkParams = {'minDuration', 'planeWaveThreshold', ...
     'synchronyThreshold', 'maxTimeGap', 'minEdgeDist', ...
-    'minCritRadius', 'maxDisplacement', 'combineNodeFocus'};
-defaultVals = [1 0.85 0 0 0 1 0.5 0];
+    'minCritRadius', 'maxDisplacement', 'combineNodeFocus', ...
+    'combineStableUnstable'};
+defaultVals = [1 0.85 0.85 0 0 1 0.5 0 0];
 isDefault = false(size(checkParams));
 
-if any(strcmp(inputParams, 'combineNodeFocus')) && islogical(params.combineNodeFocus)
-        params.combineNodeFocus = double(params.combineNodeFocus);
+if any(strcmp(inputParams, 'combineNodeFocus')) && ...
+        islogical(params.combineNodeFocus)
+    params.combineNodeFocus = double(params.combineNodeFocus);
+end
+if any(strcmp(inputParams, 'combineStableUnstable')) && ...
+        islogical(params.combineStableUnstable)
+    params.combineStableUnstable = double(params.combineStableUnstable);
 end
 
 for iparam = 1:length(checkParams)
@@ -71,16 +88,18 @@ for iparam = 1:length(checkParams)
     end
 end
 params.combineNodeFocus = params.combineNodeFocus == 1;
+params.combineStableUnstable = params.combineStableUnstable == 1;
 
 % Make sure that edge distance is at least as large as mininum radius
 if params.minEdgeDist < params.minCritRadius
     params.minEdgeDist = params.minCritRadius;
-    warning('Minimum edge distance parameter must not be smaller than critical point radius parameter!')
+    fprintf('Setting minimum edge distance parameter to be equal to\ncritical point radius parameter.\n')
 end
 
 
 %% Ask user for input on plane wave threshold if not supplied
-% figureAlso use div/curl measures?
+% Work in progress, is not very helpful at this stage!
+% figure
 % if isDefault(strcmp(checkParams, 'planeWaveThreshold'))
 %     if verLessThan('matlab', '9.2')
 %         hist(phi, linspace(0.025, 0.975, 20))
@@ -103,16 +122,16 @@ end
 % figure
 % if isDefault(strcmp(checkParams, 'synchronyThreshold'))
 %     if verLessThan('matlab', '9.2')
-%         hist(v0, 30)
+%         hist(rlength, 30)
 %     else
-%         histogram(v0, 30)
+%         histogram(rlength, 30)
 %     end
 %     axis tight
 %     xlabel('Mean vector magnitude')
 %     ylabel('Counts')
 %     title('Please specify synchrony threshold in command window')
 %     disp('Specify vector magnitude maximum threshold for synchrony detection.')
-%     disp('Default is 0.')
+%     disp('Value must be between 0 and 1, default is 0.85.')
 %     userThresh = input('Maximum vector magnitude: ');
 %     if isempty(userThresh) || ~isnumeric(userThresh) || userThresh<0 || userThresh>0 
 %         userThresh = 0;
@@ -125,7 +144,13 @@ end
 pattTypes = {'planeWave', 'synchrony', 'stableNode', 'unstableNode', ...
     'stableFocus', 'unstableFocus', 'saddle'};
 if params.combineNodeFocus
-    pattTypes = pattTypes([1:4, 7]);
+    if params.combineStableUnstable
+        pattTypes = pattTypes([1:3, 7]);
+    else
+        pattTypes = pattTypes([1:4, 7]);
+    end
+elseif params.combineStableUnstable
+    pattTypes = pattTypes([1:3, 5, 7]);
 end
 allPatternLocs = cell(length(pattTypes), 1);
 
@@ -141,28 +166,39 @@ npw = length(pwStart);
 patterns(1:npw, 1) = 1;
 patterns(1:npw, 2:3) = [pwStart, pwEnd];
 npat = npw;
-% Save plane wave directions
+% Find travel direction of plane waves
 vdir = vdir(pwValid);
 dirTimes = find(pwValid);
-allPatternLocs{1} = cat(2, real(vdir), imag(vdir), dirTimes, ones(size(dirTimes)));
-
+allPatternLocs{1} = cat(2, real(vdir), imag(vdir), dirTimes, ...
+    ones(size(dirTimes)));
 
 % Synchrony
-syActive = v0<=params.synchronyThreshold;
-[syStart, syEnd] = findRuns(syActive, params.minDuration, [], ...
-    params.maxTimeGap);
-nsy = length(syStart);
-patterns(npat + (1:nsy), 1) = 2;
-patterns(npat + (1:nsy), 2:3) = [syStart, syEnd];
-npat = npat + nsy;
-allPatternLocs{2} = zeros(0, 4);
+% Only detect synchrony if phase data is input
+if exist('phase', 'var')
+    syActive = rlength >= params.synchronyThreshold;
+    [syStart, syEnd] = findRuns(syActive, params.minDuration, [], ...
+        params.maxTimeGap);
+    nsy = length(syStart);
+    patterns(npat + (1:nsy), 1) = 2;
+    patterns(npat + (1:nsy), 2:3) = [syStart, syEnd];
+    npat = npat + nsy;
+    allPatternLocs{2} = zeros(0, 4);
+end
 
 %% Find all critical points
 % Define map to quickly link critical point names to indices
 if ~params.combineNodeFocus
-    critTypeInds = 1:5;
+    if ~params.combineStableUnstable
+        critTypeInds = 1:5;
+    else
+        critTypeInds = [1 1 2 2 3];
+    end
 else
-    critTypeInds = [1 2 1 2 3];
+    if ~params.combineStableUnstable
+        critTypeInds = [1 2 1 2 3];
+    else
+        critTypeInds = [1 1 1 1 2];
+    end
 end
 ntypes = max(critTypeInds);
 critTypeKeys = {'stableNode', 'unstableNode', 'stableFocus', ...
@@ -174,9 +210,9 @@ critpointLocs = cell(nt, ntypes);
 
 for it = 1:nt
     % OPTIONAL: Skip time point if the system displays synchrony
-    if syActive(it)
-        continue
-    end
+    %if syActive(it)
+    %    continue
+    %end
     
     % Find critical points (ignoring too close to edge)
     ivx = vfx(:,:,it);
@@ -192,8 +228,6 @@ for it = 1:nt
     for icrit = 1:length(rowcoords)
         icoord = allcoords(icrit, :);
         cpInds(icrit) = ctype2ind(cptypes{icrit});
-        
-        % TODO: Could also add div/curl measures here
         
         % Calculate size of patterns using winding number
         if params.minCritRadius >= 1
@@ -256,7 +290,7 @@ for itype = 1:ntypes
             % Calculate mean displacement
             meanDisp = mean( findDist( ...
                 positions(pointsInPattern(1:(end-1))), ...
-                positions(pointsInPattern(2:end)) ));
+                positions(pointsInPattern(2:end))));
             
             % Store results
             saveVec = [itype+2, activeTimes(pointsInPattern(1)), ...
@@ -270,7 +304,6 @@ for itype = 1:ntypes
             pointIsUsed(pointsInPattern) = true;
             
         end
-        
     end
     allPatternLocs{itype+2} = thisCrit(pointIsUsed,:);
     
@@ -279,7 +312,6 @@ end
 %% Tidy up for output
 patterns = patterns(1:npat,:);
 patterns(:,4) = patterns(:,3) - patterns(:,2);
-
 
 %% Define recursive function to find link critical points into patterns
 function pointsInPattern = findCritPatterns(thisIndex, activeTimes, ...

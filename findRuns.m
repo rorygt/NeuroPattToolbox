@@ -1,10 +1,13 @@
 function [startIndices, endIndices, outputArray] = findRuns(...
     binaryArray, minLength, maxLength, ignoreZeros)
 % FINDRUNS finds the start and end indices of runs of consecutive 1's in
-% BINARYARRAY that are longer than MINLENGTH (default is 0) and shorter
+% BINARYARRAY that are longer than MINLENGTH (default 0) and shorter
 % than MAXLENGTH (default infinity). IGNORENZEROS is an optional integer
 % argument; if set, runs of zeros of length IGNOREZEROS or less are
 % ignored.
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 szb = size(binaryArray);
 binaryArray = binaryArray(:);

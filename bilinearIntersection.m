@@ -28,6 +28,9 @@ function coords = bilinearIntersection(cell1, cell2, v)
 %     |              |      However, the MATLAB indexing of this square 
 %     [ (0,0)  (1,0) ]      is [(0,1),   (0,0),   (1,1),   (1,0)]
 %                           =  [cell(1), cell(2), cell(3), cell(4)]
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 a1 = cell1(4) - cell1(2);
 b1 = cell1(1) - cell1(2);

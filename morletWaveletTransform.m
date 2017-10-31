@@ -39,7 +39,7 @@ function [cfx,cfreqso] = morletWaveletTransform(x, fs, cfreqs, morletParam, dim,
         axis xy
 %}
 %
-% Rory Townsend, Oct 2016
+% Rory Townsend, Oct 2017
 % rory.townsend@sydney.edu.au
 
 
@@ -85,7 +85,7 @@ if ~isvector(x)
         cfstruct = cwtft({x(:,ichan),dt},'scales',scales,'wavelet',{'morl', morletParam});
         cfx(:, :, ichan) = cfstruct.cfs;
     end
-    plotVal = squeeze(mean(cfx, 2));
+    plotVal = squeeze(mean(cfx, 3));
 else
     %cfs = cwt(x, scales, wname);
     cfstruct = cwtft({x,dt},'scales',scales,'wavelet',{'morl',morletParam});

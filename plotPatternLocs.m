@@ -1,4 +1,4 @@
-function plotPatternLocs(allLocs, pattTypes, realTime, ntrials, nspacebins, smoothScale)
+function plotPatternLocs(allLocs, pattTypes, realTime, ntrials, nspacebins, smoothScale, useContours)
 % Takes the patterns cell array ALLPATTERNLOCS from findAllPatterns.m and
 % produces a number of plots
 
@@ -13,11 +13,17 @@ end
 if ~exist('smoothScale', 'var')
     smoothScale = 1;
 end
+if ~exist('useContours', 'var')
+    useContours = true;
+end
 
 % Combine patterns across all trials
 npat = length(pattTypes);
 combLocs = cell(1, npat);
 noPatts = false(1, npat);
+if ~iscell(allLocs{1})
+    allLocs = {allLocs};
+end
 
 for ipatt = 1:npat
     % Reshape cell array to combine across all trials
@@ -47,7 +53,7 @@ for ipatt = 1:npat
         plot(realTime(1:end-1), smooth(nActive, smoothScale))
         axis tight
         xlabel('Time (s)')
-        ylabel('Trials active')
+        ylabel('# patterns active')
         title(sprintf('%s, %0.1f%% active', pattTypes{ipatt}, percActive))
         subplot(2, npat, npat+ipatt)
     else
@@ -61,12 +67,25 @@ for ipatt = 1:npat
         polarhistogram(angle(thisComplexLoc), 24)
         title('Plane wave propagation directions')
     else
-        histogram2(thisPatt(:,1), thisPatt(:,2), nspacebins, 'FaceColor', 'flat', ...
-            'ShowEmptyBins', 'on', 'DisplayStyle', 'tile');
-        xlabel('X location')
-        ylabel('Y location')
-        title('Spatial centre locations')
-        colorbar
+        if useContours
+            [counts,xedge,yedge] = histcounts2(thisPatt(:,1), ...
+                thisPatt(:,2), nspacebins);
+            xs = xedge(1:end-1) + 0.5 * xedge(2) - xedge(1);
+            ys = yedge(1:end-1) + 0.5 * yedge(2) - yedge(1);
+            contourf(imresize(counts, 2), 10)
+            colorbar
+            set(gca, 'XTick', [], 'YTick', [])
+        else
+            histogram2(thisPatt(:,1), thisPatt(:,2), nspacebins, ...
+                'FaceColor', 'flat', 'ShowEmptyBins', 'on', ...
+                'DisplayStyle', 'tile');
+            axis equal
+            set(gca, 'XTick', [], 'YTick', [])
+            xlabel('X location')
+            ylabel('Y location')
+            title('Spatial centre locations')
+            colorbar
+        end
     end
     
     if ~plotTime

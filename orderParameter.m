@@ -1,9 +1,23 @@
-function [phi, v0, v_direction, fullStruct] = orderParameter(vx, vy)
-% Function to calculate order parameter, from equation 1 in Collective
-% Motion by Vicsek & Zafeiris.
-% VX and VY must be NxMxtime vectors giving the x and y components of the
-% vector field. If VX and VY have more than 3 dimensions, extra dimensions
-% will be reshaped into the third dimension to calculate statistics.
+function [order, meanMag, meanDir, fullStruct] = orderParameter(vx, vy)
+% ORDERPARAMETER calculates order parameters of a vector field.
+%
+% INPUTS: VX and VY are NxMxtime vectors giving the x and y components of
+%   the vector field. If VX and VY have more than 3 dimensions, extra
+%   dimensions will be reshaped into the third dimension to calculate
+%   statistics. Alternately, input can be a single vector where the real
+%   component is VX and imaginary component is VY.
+%
+% OUTPUTS: 
+% ORDER is the average normalized velocity magnitude (used as an order
+%   parameter in T. Vicsek & A. Zafeiris (2012), Collective Motion, Physics
+%   Reports 517:71-140.
+% MEANMAG is the average velocity magnitude.
+% MEANDIR is the average normalized velocity direction.
+% FULLSTRUCT is a structure containing all previous outputs, as well as the
+%   average divergence and curl of the vector field.
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 % Accept a single complex input with real part VX and imaginary VY
 if ~isreal(vx) && (~exist('vy', 'var') || isempty(vy))
@@ -28,28 +42,28 @@ n = numel(vx(:,:,1));
 
 % Calculate average velocity magnitude
 v0full = sqrt(vx.^2 + vy.^2);
-v0 = squeeze(mean(nanmean(v0full)));
+meanMag = squeeze(mean(nanmean(v0full)));
 
 % Calculate average normalized velocity magnitude
 vx_sum = squeeze(sum(nansum(vx)));
 vy_sum = squeeze(sum(nansum(vy)));
-phi = 1./(n*v0) .* sqrt(vx_sum.^2 + vy_sum.^2);
+order = 1./(n*meanMag) .* sqrt(vx_sum.^2 + vy_sum.^2);
 
 % Reshape to include more than 3 dimensions if inputs had more
-phi = reshape(phi, szt);
-v0 = reshape(v0, szt);
+order = reshape(order, szt);
+meanMag = reshape(meanMag, szt);
 
 % Calculate average velocity direction
 if nargout > 2
     meanVect = vx_sum + 1i*vy_sum;
-    v_direction = reshape(meanVect./abs(meanVect), szt);
+    meanDir = reshape(meanVect./abs(meanVect), szt);
 end
 
 % Calculate divergence and curl at each time step
 if nargout > 3
-    fullStruct.order = phi;
-    fullStruct.meanMag = v0;
-    fullStruct.meanDir = v_direction;
+    fullStruct.order = order;
+    fullStruct.meanMag = meanMag;
+    fullStruct.meanDir = meanDir;
     
     nt = size(vx, 3);
     vdiv = zeros(nt, 1);

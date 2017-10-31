@@ -1,50 +1,76 @@
-function [U, S, V] = plotcsvd(vf, nmodeplot, realTime)
-% Performs a complex singular vector decomposition of complex velocity
-% field VF, which must be a 3D or 4D vector containing
-% [row,column,time,trial]. Plots the top NMODEPLOT spatial modes, energies
-% and time courses (default 5). REALTIME is an optional vector containing
-% the actual time points in VF in seconds. If realTime==0, only spatial
-% modes will be plotted
+function [U, S, V] = plotcsvd(vf, nmodeplot, realTime, useComplexSVD, vectorScale)
+% PLOTCSVD performs a singular vector decomposition of a vector field.
+%   Plots most dominant spatial modes and their time courses, and the
+%   trajectory of the top 3 most dominant modes.
+%
+% INPUTS:
+% VF, a complex velocity field., Must be a 3D or 4D vector containing
+%   [row,column,time,trial].
+% NMODESPLOT, the number of spatial modes to plot (default 5).
+% REALTIME, vector containing the real time in seconds of all time points
+%   in VF. If REALTIME is empty or zero, only spatial modes will be 
+%   plotted (default 1:NT, i.e. sampling frequency 1).
+% USECOMPLEXSVD, flag to decompose vectors as complex values instead of
+%   separating x- and y-coordinates (default false).
+% VECTORSCALE, number to increase or decrease vector lengths in plots
+%   (default 1, corresponding to MATLAB default size).
+%
+% OUTPUTS:
+% U, 
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
+%% Set default values
 if ~exist('nmodeplot', 'var')
     nmodeplot = 5;
 end
-
 if ~exist('realTime', 'var')
     realTime = 1:size(vf,3);
 end
+if ~exist('useComplexSVD', 'var')
+    useComplexSVD = false;
+end
+if ~exist('vectorScale', 'var')
+    vectorScale = 1;
+end
 
+% Check whether to plot time courses or not
 if isempty(realTime) || (~isvector(realTime) && realTime == 0)
     onlySpatial = true;
 else
     onlySpatial = false;
 end
 
-[nr, nc, nt] = size(vf);
+[nr, nc, nt, ~] = size(vf);
 
-% Perform SVD with complex velocity field
+
+%% Perform SVD with complex velocity field
 svdmat = reshape(vf, nr*nc, [])';
-
-% Separate x and y components into separate variables for SVD
-%svdmat = cat(2, real(svdmat), imag(svdmat));
+    
+if ~useComplexSVD
+    % Separate x and y components into separate variables for SVD
+    svdmat = cat(2, real(svdmat), imag(svdmat));
+end
 
 [U,S,V] = svd(svdmat, 0);
 
-%     % Make SVD with specified number of modes
-%     nmodescalc = 20;
-%     [U,S,V] = svds(svdmat, nmodescalc);
-
-if size(V,1) > nr*nc
-    V = V(1:nr*nc,:) + 1i*V(nr*nc+(1:nr*nc),:);
+if ~useComplexSVD
+    V = V(1:nr*nc,:) - 1i*V(nr*nc+(1:nr*nc),:);
 end
 
 % Calculate total energy then crop to specified number of modes
 eigVals = diag(S);
 totVar = sum(eigVals.^2);
 prctVar = 100 * eigVals.^2 / totVar;
-U = -U(:,1:nmodeplot);
+U = U(:,1:nmodeplot);
 S = S(1:nmodeplot, 1:nmodeplot);
-V = -V(:,1:nmodeplot);
+V = V(:,1:nmodeplot);
+
+% Make time modes as positive as possible
+isNegative = mean(real(U), 1) < 0;
+U(:, isNegative) = -U(:, isNegative);
+V(:, isNegative) = -V(:, isNegative);
 
 % Find average trajectory across all trials
 reUav = zeros(nt, nmodeplot);
@@ -56,10 +82,14 @@ for it = 1:nt
     imUav(it, :) = mean(imag(Uav),1);
     absUav(it, :) = mean(abs(Uav),1);
 end
-UavLims = [min([reUav(:); imUav(:); absUav(:)]), ...
-    max([reUav(:); imUav(:); absUav(:)])];
+if useComplexSVD
+    UavLims = [min([reUav(:); imUav(:); absUav(:)]), ...
+        max([reUav(:); imUav(:); absUav(:)])];
+else
+    UavLims = [min(reUav(:)), max(reUav(:))];
+end
 
-% Plot spatial modes containing most energy
+%% Plot spatial modes containing most energy
 for imode=1:nmodeplot
     % Plot spatial mode
     if onlySpatial
@@ -67,10 +97,11 @@ for imode=1:nmodeplot
     else
         subplot(2,nmodeplot,imode)
     end
+    
     thisMode = reshape(V(:,imode), nr, nc);
-    quiver(real(thisMode), imag(thisMode));
-    axis equal
-    axis(0.5+[0 nr 0 nc])
+    quiver(real(thisMode), imag(thisMode), vectorScale);
+    set(gca,'YDir','reverse', 'XTick', [], 'YTick', []);
+    axis(0.5+[0 nc 0 nr])
     title(sprintf('Var = %0.1f%%', prctVar(imode)))
     %title(sprintf('Var = %0.1f%%, %0.2g%%', prctVar(imode), ...
     %    sum(prctVar(1:imode))))
@@ -78,11 +109,27 @@ for imode=1:nmodeplot
     % Plot time course of spatial mode
     if ~onlySpatial
         subplot(2,nmodeplot,nmodeplot+imode)
-        plot(realTime, reUav(:,imode), realTime, imUav(:,imode), ...
-            realTime, absUav(:,imode))
+        if useComplexSVD
+            plot(realTime, reUav(:,imode), realTime, imUav(:,imode), ...
+                realTime, absUav(:,imode))
+        else
+            plot(realTime, reUav(:,imode))
+        end
         ylim(UavLims)
         xlim([realTime(1), realTime(end)])
+        hold on
+        line(xlim, [0 0], 'Color', 'k')
+        hold off
         xlabel('Time')
     end
 end
 suptitle('Top SVD modes')
+
+%% Also plot trajectory of top 3 modes
+figure
+plot3(smooth(reUav(:,1)), smooth(reUav(:,2)), smooth(reUav(:,3)))
+grid on
+xlabel('Mode 1')
+ylabel('Mode 2')
+zlabel('Mode 3')
+

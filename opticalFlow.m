@@ -18,6 +18,9 @@ function [velocityX, velocityY, allConvSteps] = ...
 %       before a message is displayed. If NSTEPSDISPLAY is not defined or
 %       is set to 0, no messages will be displayed, otherwise the progress
 %       of the calculation will be updated every NSTEPSDISPLAY steps.
+%
+% Rory Townsend, Aug 2017
+% rory.townsend@sydney.edu.au
 
 % Set default inputs
 if ~exist('badChannels', 'var')
@@ -153,80 +156,16 @@ surroundLocs.dx = dxMatrix;
 surroundLocs.dy = dyMatrix;
 surroundLocs.laplacian = lapMatrix;
 
-% % To construct the coefficient matrix A for the system of linear equations
-% % in OPTICALFLOWSTEP, it is necessary to be able to find the location of
-% % the four surrounding pixels around any given pixel in index form. Set
-% % this matrix up now to save computational time in the loop
-% surroundLocs = zeros(4, nrows, ncols);
-% weightFactors = surroundLocs+1;
-% % Select arbitrary valid point to use as default index
-% defInd = min(setdiff(1:(nrows*ncols), badChannels));
-% for irow = 1:nrows
-%     for icol = 1:ncols
-%         % This is basically the SUB2IND function, but allows subscripts
-%         % outside the edge of the array
-%         isurroundLocs = [irow-1; irow+1; irow; irow] + ...
-%             ncols * ([icol; icol; icol-1; icol+1] - 1);
-%         % When surrounding locations are off the edge of the array or are a
-%         % location in BADCHANNELS, duplicate the entry in the other
-%         % direction. If this occurs, change the WEIGHTFACTOR from 1 to 2 to
-%         % indicate it has been duplicated.
-%         if irow == 1 || ismember(isurroundLocs(1), badChannels)
-%             isurroundLocs(1) = isurroundLocs(2);
-%             weightFactors(1:2,irow,icol) = 2;
-%         end
-%         if irow == nrows || ismember(isurroundLocs(2), badChannels)
-%             % If there is an invalid row on both sides, use averaging from
-%             % columns only
-%             if  isurroundLocs(1) == isurroundLocs(2)
-%                 isurroundLocs(1) = defInd;
-%                 isurroundLocs(2) = defInd;
-%                 weightFactors(1:2,irow,icol) = 0;
-%                 weightFactors(3:4,irow,icol) = 2;
-%             else
-%                 isurroundLocs(2) = isurroundLocs(1);
-%                 weightFactors(1:2,irow,icol) = 2;
-%             end
-%         end
-%         if icol == 1 || ismember(isurroundLocs(3), badChannels)
-%             isurroundLocs(3) = isurroundLocs(4);
-%             weightFactors(3:4,irow,icol) = 2*weightFactors(3:4,irow,icol);
-%         end
-%         if icol == ncols || ismember(isurroundLocs(4), badChannels)         
-%             % If there is an invalid column on both sides, use averaging from
-%             % rows only
-%             if isurroundLocs(3) == isurroundLocs(4)
-%                 isurroundLocs(3) = defInd;
-%                 isurroundLocs(4) = defInd;
-%                 weightFactors(3:4,irow,icol) = 0;
-%                 weightFactors(1:2,irow,icol) = 2*weightFactors(1:2,irow,icol);
-%             else
-%                 isurroundLocs(4) = isurroundLocs(3);
-%                 weightFactors(3:4,irow,icol) = 2*weightFactors(3:4,irow,icol);
-%             end
-%         end
-%         surroundLocs(:,irow,icol) = isurroundLocs;
-%         
-%     end
-% end
-% 
-% % To construct the coefficient matrix A for the system of linear equations
-% % in OPTICALFLOWSTEP, it is necessary to be able to find the location of
-% % the four surrounding pixels around any given pixel in index form. Set
-% % this matrix up now to save computational time in the loop
-% isNearby = zeros(nrows*ncols);
-% for ielem = 1:nrows*ncols
-%     isNearby(ielem, surroundLocs(:,ielem)) = weightFactors(:,ielem);
-% end
-% surroundLocs = sparse(isNearby);
-
-
 % Loop over all time steps
 for it = 1 : ( size(video, 3) - 1 )
     % Calculate optical flow
     [ivx, ivy, convSteps] = opticalFlowStep(frame, nextFrame, ...
         badChannels, surroundLocs, alpha, ...
         beta, 0, ivx, ivy, prevFrame, next2Frame, angleFlag);
+    
+    if convSteps == 1000
+        disp('HERE')
+    end
     
     % Store results
     allConvSteps(it) = convSteps;

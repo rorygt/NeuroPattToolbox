@@ -6,6 +6,9 @@ function [rowcoords, colcoords, patType, jacobians] = classifyCrit(vx, vy, edgeD
 %   optionally a 2x2xN matrix expressing the estimated Jacobian at each
 %   point. Critical points fewer than EDGEDISTANCE points from the edge of
 %   the array will be discarded (defaults to zero).
+%
+% Rory Townsend, Oct 2017
+% rory.townsend@sydney.edu.au
 
 if ~exist('edgeDistance', 'var')
     edgeDistance = 0;
