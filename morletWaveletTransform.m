@@ -55,7 +55,7 @@ if ~isvector(x) && (~exist('dim', 'var') || strcmp(morletParam, 'plot'))
 end
 
 if ~isvector(x)
-    % Reshape input so that time in in the second dimension and other 
+    % Reshape input so that time is in the second dimension and other 
     % dimensions are combined
     permOrder = [dim, 1:dim-1, dim+1:ndims(x)];
     x = permute(x, permOrder);

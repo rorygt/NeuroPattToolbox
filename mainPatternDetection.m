@@ -1,52 +1,35 @@
-% Main function to load raw data, filter, calculate optical flow and find
-% patterns
+% Main script to filter data, calculate optical flow, find patterns, and
+% view results
+%
+% This will probably be changed to a function later, but is currently a
+% script for ease of testing. 
+%
+% Required variables:
+%   - LFPs: X x Y x TIME x REPETITION matrix representing some
+%     oscillatory recording data. If data is spontaneous or stimulus is
+%     not repeated, LFPs should be X x Y x TIME.
+%   - Fs: Sampling frequency (in Hz)
+%   - dataName: (Optional) String identifying data being used (e.g.
+%     experiment and animal ID), will be included in figure titles and
+%     saved data
 
 clearvars
 close all
 
-%% Data file parameters
-useMouseCortex = false;
-mouseResize = 0.2;
-useEvoked = true;
-
-if useEvoked
-    fileInd = 3;
-    % Set path to stimulus-evoked files
-    recordingsEv = {'MA026-14','MA027-8', 'MA026-44', 'MA027-7', ...
-        'MY144-111', 'MY147-31', 'MA026-46'};
-    if isunix
-        dataLoc = './Processed_data/Evoked/';
-    else
-        dataLoc = 'D:\Evoked';
-    end
-    dataName = sprintf('evoked_%s.mat', recordingsEv{fileInd});
-    stimDir = 2;
-else
-    fileInd = 2;
-    % Set path to spontaneous files
-    animalsSp = {'my144a', 'MY147', 'MA026a'};
-    fileNumsSp = [101, 53, 5];
-    filePartSp = '';
-    if isunix
-        dataLoc = './Processed_data/';
-    else
-        error('Data missing!')
-    end
-    dataName = sprintf('LFPsHilbertSpikes_%s%s-%i.mat', ...
-        animalsSp{fileInd}, filePartSp, fileNumsSp(fileInd));
-end
-
-if useMouseCortex
-    dataName = 'mouseCortex';
-end
+% This is a customized function I use to load relevant data, other users
+% will need to replace this with some other function to load data
+loadDataRory
 
 %% Set parameters
-% Main set of parameters from function
-params = setPatternParams('all', Fs);
+% Most parameters are defined in the SETPARAMS function, this section sets
+% secondary parameters only used in this script
 
-% Optionally include time limits by which to crop evoked data (leave empty
+% Main set of parameters from dedicated function
+params = setParams(Fs);
+
+% Optionally give time limits by which to crop evoked data (leave empty
 % for no cropping)
-if useEvoked && ~useMouseCortex
+if size(LFPs,4) > 1
     timeCropLims = [-0.5, 1.5];
 else
     timeCropLims = [];
@@ -55,56 +38,45 @@ end
 % Video output parameters
 % Flag to save video of signal, velocity fields and patterns
 saveVideo = false;
-% Video file name
+% Video file name (including path). If empty, video will be saved in
+% default MATLAB path figure title below as a file name
 vidName = [];
-% Video frame rate
-vidFrameRate = 20;
+% Video frame rate (frames/s)
+vidFps = 20;
+% Scale by which to resize phase/amplitude maps in video
+vidResizeScale = 2;
+% Scale by which to increase velocity field vectors in video
+vidVectorScale = 1.5;
 
-%% Load LFPs
+% Set title for figures and save files
 if params.useAmplitude
     typeStr = 'amp';
 else
     typeStr = 'phase';
 end
-
-figTitle = sprintf('%s_%iHz_mp%i_a%0.1fb%0.1f_%s', dataName, ...
-    params.morletCfreq, params.morletParam, params.opAlpha, ...
-    params.opBeta, typeStr);
-
-% LFPs should be of the form CHANNEL x TIME x TRIAL (only 1 trial for
-% spontaneous recordings)
-if useMouseCortex
-    % Load mouse data file
-    load('./Exp011_Fluo_001_part_2_sequenceData_ratioFiltered.mat')
-    Fs = 50;
-    data = rot90(data(20:115, 81:144, :), 2);
-    firstFrame = imresize(data(:,:,1), mouseResize);
-    LFPs = zeros([size(firstFrame), size(data, 3)]);
-    cortexMask = imresize(rot90(meta.traceMask(20:115, 81:144,:),2), ...
-        mouseResize);
-    for itime = 1:size(data,3)
-        LFPs(:,:,itime) = imresize(data(:,:,itime), mouseResize);
-    end
-    clearvars data
-
+if params.useMorlet
+    figTitle = sprintf('%s_%iHz_mp%i_a%0.1fb%0.1f_%s', dataName, ...
+        params.morletCfreq, params.morletParam, params.opAlpha, ...
+        params.opBeta, typeStr);
 else
-    fprintf('Loading file %s\n', dataName); tic
-    if useEvoked
-        % Load stimulus-evoked LFP data file
-        load(fullfile(dataLoc, dataName), 'allLFPs', 'Fs')
-        LFPs = allLFPs{stimDir};
-        clearvars allLFPs
-        LFPs = permute(LFPs, [1 3 2]);
-    else
-        % Load spontaneous LFP data file
-        load(fullfile(dataLoc, dataName), 'LFPs', 'Fs')
-    end
-    
-    % Convert to X-Y grid of electrodes
-    LFPs = vector2grid(LFPs);
+    figTitle = sprintf('%s_%i-%iHz_a%0.1fb%0.1f_%s', dataName, ...
+        params.hilbFreqLims(1), params.hilbFreqLims(2), params.opAlpha, ...
+        params.opBeta, typeStr);
 end
-toc
 
+% Some plotting parameters are set within the relevant section below so
+% that sections can be run independently for easy plotting. They are
+% initially defined here to make them easier to find, but their values here
+% are not used.
+% Parameters for finding pattern evolutions
+nafter = round(0.05*Fs);
+nbefore = round(0.01*Fs);
+% Parameters for plotting pattern locations
+smoothScale = 20;
+nspacebins = 2*(9 - 2*params.minEdgeDistance);
+% Parameters for plotting velocity field modes
+useComplexSVD = false;
+vectorScale = 1.5;
 
 %% Process LFPs
 % Find any channels with NaN or zero values
@@ -152,6 +124,16 @@ else
 end
 maxDiff = prctile(abs(allDiff(:)), 99);
 fprintf('99th percentile of the fractional change between time steps is %0.2f.\n', maxDiff)
+if maxDiff > 0.1
+    disp('Change is >10%, results may be affected by low sampling frequency.')
+    if params.downsampleScale > 1
+        disp('Consider reducing downsampleScale in setParams.m to increase Fs.')
+    end
+else
+    disp('Change is <10%, sampling frequency is sufficient for data.')
+    disp('Consider increasing downsampleScale in setParams.m to improve speed.')
+end
+
 clearvars allDiff
 
 %% Compute optical flow
@@ -182,8 +164,6 @@ fprintf('Optical flow took %0.1f steps on average to converge.\n', mean(meanCSte
 %% Loop over every trial to find patterns present
 disp('Finding all patterns...'); tic;
 
-params = setPatternParams([],Fs);
-
 allPatts = cell(1, size(wvcfs,4));
 allLocs = allPatts;
 
@@ -204,6 +184,8 @@ set(gca, 'YTick', 1:length(pattTypes), 'YTickLabel', pattTypes)
 toc
 
 %% Examine evolution between patterns
+% Number of time steps before and after a pattern ends to search for other
+% patterns
 nafter = round(0.05*Fs);
 nbefore = round(0.01*Fs);
 
@@ -213,8 +195,8 @@ for itype = 1:length(pattTypes)
 end
 
 [nobs, nexp] = pattEvolution(allPatts, length(realTime), nafter, nbefore);
-%rateDiff = (nobs - nexp) / length(realTime) * Fs;
-rateDiff = (nobs - nexp);% ./ (nexp);
+rateDiff = (nobs - nexp) / length(realTime) * Fs;
+%rateDiff = (nobs - nexp);% ./ (nexp);
 disp('Observed minus expected pattern transitions/sec')
 disp(pattTypeStr)
 disp(nanmean(rateDiff,3))
@@ -240,8 +222,10 @@ disp(pvals)
 
 %% Plot pattern locations
 figure('Name', figTitle)
+% Optionally smooth pattern counts in time
 smoothScale = 20;
-nspacebins = 2*(9 - 2*params.minEdgeDist);
+% Number of bins in x- and y-directions to plot pattern location counts
+nspacebins = 2*(9 - 2*params.minEdgeDistance);
 plotPatternLocs(allLocs, pattTypes, realTime, size(wvcfs,4), nspacebins, smoothScale, 1);
 
 %% Plot patterns duration and displacement distributions
@@ -269,9 +253,14 @@ for ipatt = 1:length(unqPatts)
     title(sprintf('Mean %0.3g', mean(thisDisp*Fs)))
 end
 
-%% Perform SVD of vector fields
+%% Perform singular value decomposition of velocity fields
+% Flag to use complex SVD, which means that spatial modes are free to
+% rotate (otherwise they can only be scaled)
 useComplexSVD = false;
+% Scale by which to increase vector length from MATLAB default
 vectorScale = 1.5;
+
+% Open new figure and plot SVD modes
 figure('Name', figTitle)
 if useEvoked
     plotTime = realTime(1:end-1);
@@ -281,34 +270,16 @@ end
 plotcsvd(vfs, 6, plotTime, useComplexSVD, vectorScale);
 
 %% Optionally save a video file of all data
-if useMouseCortex && saveVideo
-    combLocs = allLocs{1};
-    combLocs = sortrows(cat(1, combLocs{2:end}), 3);
-    
-    fig = figure('Name', figTitle);
-    
+if saveVideo
+    % Set video name
     if isempty(vidName)
         vidName = strrep(figTitle, '.', '');
     end
     
-    % Set title and open video file
-    vidTitle = strcat(vidName, datestr(now,'mmdd'), '_', ...
-        datestr(now,'HHMM'), '.avi');
-    vidObj = VideoWriter(vidTitle);
-    vidObj.FrameRate = vidFrameRate;
-    open(vidObj);
+    saveVelocityFieldVideo(wvcfs, vfs, vidName, vidFps, ...
+        Fs, vidResizeScale, vidVectorScale, params.useAmplitude)
     
-    
-    for itime = 1:size(vfs,3)
-        showGridVectorPatterns(angle(wvcfs(:,:,itime)).*cortexMask ...
-            + (1-cortexMask)*1.5 ... % Just to change the mask color
-            , vfs(:,:,itime), combLocs(combLocs(:,3)==itime,:), [], 2, 1)
-        title(sprintf('%0.2f s', itime/Fs))
-        writeVideo(vidObj, im2frame(print(fig,'-RGBImage')));
-    end
-    
-    close(vidObj);
 end
 
-
+ 
 

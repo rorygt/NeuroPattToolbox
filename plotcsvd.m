@@ -125,11 +125,11 @@ for imode=1:nmodeplot
 end
 suptitle('Top SVD modes')
 
-%% Also plot trajectory of top 3 modes
-figure
-plot3(smooth(reUav(:,1)), smooth(reUav(:,2)), smooth(reUav(:,3)))
-grid on
-xlabel('Mode 1')
-ylabel('Mode 2')
-zlabel('Mode 3')
+%% OPTIONAL: Also plot trajectory of top 3 modes
+% figure
+% plot3(smooth(reUav(:,1)), smooth(reUav(:,2)), smooth(reUav(:,3)))
+% grid on
+% xlabel('Mode 1')
+% ylabel('Mode 2')
+% zlabel('Mode 3')
 
